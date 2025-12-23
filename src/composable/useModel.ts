@@ -1,19 +1,25 @@
 import { ref } from 'vue'
 
 // 模型url
-const url = ref('rabbit.glb')
+// const url = ref('rabbit.glb')
+const url = ref('logo_model_v13.glb')
+
+
 
 // 循环动画
 const loopAction = ref({
-  action: 'Play',
+  action: 'Idle',
   isLoop: true,
 })
 
 // 是否点击动画
 const clickAction = ref({
-  action: 'Hello',
+  action: 'Jump',
   isEnable: true,
 })
+
+// 可用的点击交互动作列表
+const availableClickActions = ['Jump', 'Greet']
 
 // 运动通知
 const clickActionPlay = ref(false)
@@ -27,6 +33,7 @@ export const useModel = () => {
     url,
     loopAction,
     clickAction,
+    availableClickActions,
     clickActionPlay,
     clickActionPlayMessage,
   }

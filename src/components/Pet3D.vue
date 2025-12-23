@@ -1,3 +1,10 @@
+<!--
+ * @Author: LiZhiWei
+ * @Date: 2025-12-23 14:53:55
+ * @LastEditors: LiZhiWei
+ * @LastEditTime: 2025-12-23 17:20:58
+ * @Description: 
+-->
 <script setup lang="ts">
 import { useAnimations, useGLTF } from '@tresjs/cientos'
 import * as THREE from 'three'
@@ -37,7 +44,14 @@ const modules = import.meta.glob('/public/*.glb', {
 })
 
 // 根据 url 获取对应的模型路径
-modelUrl.value = modules[`/public/${url.value}`] as string
+const path = `/public/${url.value}`
+modelUrl.value = (modules[path] as string) || url.value
+
+if (!modelUrl.value) {
+  console.error(`Model not found: ${path}`)
+} else {
+  console.log(`Loading model from: ${modelUrl.value}`)
+}
 
 const { scene: model, animations } = await useGLTF(modelUrl.value)
 

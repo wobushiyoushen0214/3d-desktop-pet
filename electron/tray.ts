@@ -1,3 +1,10 @@
+/*
+ * @Author: LiZhiWei
+ * @Date: 2025-12-23 14:53:55
+ * @LastEditors: LiZhiWei
+ * @LastEditTime: 2025-12-23 16:30:01
+ * @Description: 
+ */
 import { app, Tray, Menu, nativeImage } from 'electron'
 import path from 'node:path'
 
@@ -6,7 +13,7 @@ let tray: Tray | null = null
 export function createTray(callback: () => void) {
   // 创建托盘图标
   const icon = nativeImage.createFromPath(
-    path.join(process.env.VITE_PUBLIC, 'rabbitRound.png')
+    path.join(process.env.VITE_PUBLIC, 'logo.png')
   )
   tray = new Tray(icon.resize({ width: 16, height: 16 }))
 
