@@ -2,16 +2,20 @@
  * @Author: LiZhiWei
  * @Date: 2025-12-23 14:53:55
  * @LastEditors: LiZhiWei
- * @LastEditTime: 2025-12-23 17:20:58
+ * @LastEditTime: 2025-12-24 09:08:05
  * @Description: 
 -->
+
+<template>
+  <primitive :object="model" />
+</template>
 <script setup lang="ts">
 import { useAnimations, useGLTF } from '@tresjs/cientos'
 import * as THREE from 'three'
 import { ref, watch } from 'vue'
 import { useModel } from '../composable/useModel'
 
-const { url, loopAction, clickAction, clickActionPlay } = useModel()
+const { url, loopAction, clickAction, clickActionPlay, availableClickActions } = useModel()
 
 watch(clickActionPlay, () => {
   if (clickActionPlay.value) {
@@ -81,26 +85,38 @@ if (loopAction.value.isLoop && currentLoopAction.value) {
 
 // 点击动作
 const hello = () => {
-  if (!clickAction.value.isEnable || !currentClickAction.value) {
+  // console.log('Hello action triggered')
+  if (!clickAction.value.isEnable) {
     return
   }
+
+  // 随机选择一个动作
+  const actionName =
+    availableClickActions[
+      Math.floor(Math.random() * availableClickActions.length)
+    ]
+  const action = actions[actionName]
+
+  if (!action) return
+
   if (isPlaying.value) {
     currentLoopAction.value.stop()
   }
-  currentClickAction.value.play()
-  currentClickAction.value.setLoop(THREE.LoopOnce, 1)
-  currentClickAction.value.clampWhenFinished = true
+  
+  action.stop()
+  action.play()
+  action.setLoop(THREE.LoopOnce, 1)
+  action.clampWhenFinished = true
 
-  currentClickAction.value.getMixer().addEventListener('finished', () => {
-    currentClickAction.value.stop()
+  const onFinished = () => {
+    action.stop()
     clickActionPlay.value = false
+    action.getMixer().removeEventListener('finished', onFinished)
     if (isPlaying.value) {
       currentLoopAction.value.play()
     }
-  })
+  }
+
+  action.getMixer().addEventListener('finished', onFinished)
 }
 </script>
-
-<template>
-  <primitive :object="model" />
-</template>

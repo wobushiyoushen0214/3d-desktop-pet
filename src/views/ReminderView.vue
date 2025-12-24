@@ -1,3 +1,220 @@
+
+<template>
+  <SubWindowLayout title="提醒管理">
+    <div class="h-full flex flex-col bg-gray-50">
+      <!-- Tab 切换 -->
+      <div class="px-6 pt-6 pb-2 bg-white border-b border-gray-100">
+        <div class="flex p-1 bg-gray-100/80 rounded-xl">
+          <button
+            class="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ease-out"
+            :class="[
+              activeTab === 'list'
+                ? 'bg-white text-blue-600 shadow-sm scale-[1.02]'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-white/50',
+            ]"
+            @click="switchTab('list')"
+          >
+            提醒列表
+          </button>
+          <button
+            class="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ease-out"
+            :class="[
+              activeTab === 'add'
+                ? 'bg-white text-blue-600 shadow-sm scale-[1.02]'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-white/50',
+            ]"
+            @click="switchTab('add')"
+          >
+            添加提醒
+          </button>
+        </div>
+      </div>
+
+      <!-- 提醒列表 -->
+      <div v-show="activeTab === 'list'" class="flex-1 overflow-y-auto p-6">
+        <div v-if="reminders.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
+          <span class="text-4xl mb-4">📭</span>
+          <p>暂无提醒事项</p>
+        </div>
+        <div v-else class="flex flex-col gap-4">
+          <div
+            v-for="reminder in reminders"
+            :key="reminder.id"
+            class="group bg-white rounded-xl p-5 shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]"
+          >
+            <div class="flex justify-between items-start gap-5">
+              <div class="flex items-center gap-3 flex-1">
+                <!-- 状态指示点 -->
+                <div 
+                  class="w-2.5 h-2.5 rounded-full shadow-sm"
+                  :class="reminder.isEnabled ? 'bg-green-500 shadow-green-200' : 'bg-gray-300'"
+                ></div>
+                
+                <h4 class="font-medium text-gray-800 text-lg">{{ reminder.title }}</h4>
+                <div
+                  class="text-xs px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 border border-gray-100 font-medium"
+                >
+                  {{ repeatTypeMap[reminder.repeatType] }}
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button
+                  v-if="reminder.repeatType !== 'none'"
+                  @click="toggleReminderStatus(reminder)"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  :class="
+                    reminder.isEnabled
+                      ? 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                      : 'bg-green-50 text-green-600 hover:bg-green-100'
+                  "
+                >
+                  {{ reminder.isEnabled ? '暂停' : '启用' }}
+                </button>
+                <button
+                  @click="deleteReminder(reminder.id!)"
+                  class="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+
+            <p class="text-gray-500 text-sm mt-3 mb-4 leading-relaxed pl-5 border-l-2 border-gray-50">
+              {{ reminder.description || '暂无描述' }}
+            </p>
+
+            <div class="flex items-center gap-4 text-xs text-gray-400 pl-5">
+              <div v-if="reminder.repeatType === 'custom'" class="flex items-center gap-1">
+                <span>⏱️</span>
+                <span>间隔 {{ reminder.customInterval }} 分钟</span>
+              </div>
+              <div v-if="reminder.repeatType === 'daily'" class="flex items-center gap-1">
+                <span>📅</span>
+                <span>每天 {{ reminder.dailyTime }}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span>🔔</span>
+                <span>下次: </span>
+                <span
+                  class="text-blue-500 font-medium cursor-help"
+                  :title="newReminderTime"
+                  @mouseenter="getLatestReminderTime(reminder.id!)"
+                >
+                  {{ newReminderTime || '计算中...' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 添加提醒表单 -->
+      <div v-show="activeTab === 'add'" class="flex-1 overflow-y-auto p-6">
+        <div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="text-xl font-semibold text-gray-800 mb-6">创建新提醒</h3>
+          <div class="space-y-6">
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-gray-700">提醒标题 <span class="text-red-500">*</span></label>
+              <input
+                v-model="newReminder.title"
+                type="text"
+                placeholder="例如：喝水、休息一下"
+                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300"
+              />
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium text-gray-700">提醒描述</label>
+              <textarea
+                v-model="newReminder.description"
+                rows="3"
+                placeholder="添加一些备注信息..."
+                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300 resize-none"
+              >
+              </textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+              <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">重复类型</label>
+                <div class="relative">
+                  <select
+                    v-model="newReminder.repeatType"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm appearance-none bg-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300 cursor-pointer"
+                  >
+                    <option value="none">不重复</option>
+                    <option value="custom">自定义间隔</option>
+                    <option value="daily">每天</option>
+                  </select>
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">
+                  {{ newReminder.repeatType === 'none' ? '提醒时间' : '首次提醒时间' }} <span class="text-red-500">*</span>
+                </label>
+                <input
+                  v-model="newReminder.reminderTime"
+                  type="datetime-local"
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-gray-300"
+                />
+              </div>
+            </div>
+
+            <div v-if="newReminder.repeatType === 'custom'" class="flex flex-col gap-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+              <label class="text-sm font-medium text-blue-800">间隔时间（分钟）</label>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model="newReminder.customInterval"
+                  type="number"
+                  min="1"
+                  class="flex-1 px-4 py-3 border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+                <span class="text-sm text-blue-600 font-medium">分钟后再次提醒</span>
+              </div>
+            </div>
+
+            <div v-if="newReminder.repeatType === 'daily'" class="flex flex-col gap-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+              <label class="text-sm font-medium text-blue-800">每天提醒时间</label>
+              <input
+                v-model="newReminder.dailyTime"
+                type="time"
+                class="w-full px-4 py-3 border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+            </div>
+
+            <div class="pt-4">
+              <button
+                @click="handleAddReminder"
+                :disabled="!isFormValid"
+                class="w-full py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all duration-300 transform active:scale-[0.98]"
+                :class="[
+                  isFormValid
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/30'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+                ]"
+              >
+                添加提醒
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <Toast
+      message="提醒标题已存在，请使用不同的标题"
+      type="warning"
+      v-model="showToast"
+    />
+  </SubWindowLayout>
+</template>
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import SubWindowLayout from '../components/SubWindowLayout.vue'
@@ -172,228 +389,6 @@ async function getLatestReminderTime(reminderId: string) {
     : '无'
 }
 </script>
-
-<template>
-  <SubWindowLayout title="提醒管理">
-    <div class="h-full flex flex-col">
-      <!-- Tab 切换 -->
-      <div class="flex px-5 pt-5 gap-2.5 bg-white">
-        <button
-          class="px-5 py-2.5 rounded-t-lg text-sm transition-all duration-300 ease-in-out"
-          :class="[
-            activeTab === 'list'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 hover:bg-gray-200',
-          ]"
-          @click="switchTab('list')"
-        >
-          提醒列表
-        </button>
-        <button
-          class="px-5 py-2.5 rounded-t-lg text-sm transition-all duration-300 ease-in-out"
-          :class="[
-            activeTab === 'add'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 hover:bg-gray-200',
-          ]"
-          @click="switchTab('add')"
-        >
-          添加提醒
-        </button>
-      </div>
-
-      <!-- 提醒列表 -->
-      <div v-show="activeTab === 'list'" class="flex-1 overflow-y-auto p-5">
-        <div class="flex flex-col gap-4">
-          <div
-            v-for="reminder in reminders"
-            :key="reminder.id"
-            class="bg-white rounded-lg p-4 shadow-sm border-l-4"
-            :class="[
-              reminder.isEnabled
-                ? 'border-l-blue-500'
-                : 'border-l-gray-300 opacity-60',
-            ]"
-          >
-            <div class="flex justify-between items-start gap-5">
-              <div class="flex items-center gap-2.5 flex-1">
-                <h4>{{ reminder.title }}</h4>
-                <div
-                  class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700"
-                >
-                  {{ repeatTypeMap[reminder.repeatType] }}
-                </div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="reminder.repeatType !== 'none'"
-                  @click="toggleReminderStatus(reminder)"
-                  class="px-2 py-1 rounded text-sm"
-                  :class="
-                    reminder.isEnabled
-                      ? 'bg-gray-500 text-white'
-                      : 'bg-blue-500 text-white'
-                  "
-                >
-                  {{ reminder.isEnabled ? '禁用' : '启用' }}
-                </button>
-                <button
-                  @click="deleteReminder(reminder.id!)"
-                  class="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-
-            <p class="text-gray-600 my-2.5">{{ reminder.description }}</p>
-
-            <div class="text-sm text-gray-500 space-y-1">
-              <div v-if="reminder.repeatType === 'custom'">
-                间隔时间: {{ reminder.customInterval }} 分钟
-              </div>
-              <div v-if="reminder.repeatType === 'daily'">
-                每天提醒时间: {{ reminder.dailyTime }}
-              </div>
-              <div>
-                下次提醒:
-                <span
-                  class="relative group"
-                  @mouseenter="getLatestReminderTime(reminder.id!)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 inline text-blue-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 21a9 9 0 100-18 9 9 0 000 18z"
-                    />
-                  </svg>
-                  <div
-                    class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap"
-                  >
-                    {{ newReminderTime }}
-                  </div>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          v-if="reminders.length === 0"
-          class="text-center text-gray-500 mt-4"
-        >
-          还没有添加任何提醒，快去添加一个吧！
-        </div>
-      </div>
-
-      <!-- 添加提醒表单 -->
-      <div v-show="activeTab === 'add'" class="flex-1 overflow-y-auto p-5">
-        <div class="max-w-2xl mx-auto bg-gray-100 p-8 rounded-lg">
-          <div class="space-y-5">
-            <div class="flex flex-col gap-2">
-              <label class="font-medium">提醒标题</label>
-              <input
-                v-model="newReminder.title"
-                type="text"
-                placeholder="请输入提醒标题"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <label class="font-medium">提醒描述</label>
-              <textarea
-                v-model="newReminder.description"
-                placeholder="请输入提醒描述"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-              </textarea>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <label class="font-medium">重复类型</label>
-              <select
-                v-model="newReminder.repeatType"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="none">不重复</option>
-                <option value="custom">自定义间隔</option>
-                <option value="daily">每天</option>
-              </select>
-            </div>
-
-            <div
-              v-if="newReminder.repeatType === 'custom'"
-              class="flex flex-col gap-2"
-            >
-              <label class="font-medium">间隔时间（分钟）</label>
-              <input
-                v-model="newReminder.customInterval"
-                type="number"
-                min="1"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div
-              v-if="newReminder.repeatType === 'daily'"
-              class="flex flex-col gap-2"
-            >
-              <label class="font-medium">每天提醒时间</label>
-              <input
-                v-model="newReminder.dailyTime"
-                type="time"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <label class="font-medium">
-                {{
-                  newReminder.repeatType === 'none'
-                    ? '提醒时间'
-                    : '首次提醒时间'
-                }}
-              </label>
-              <input
-                v-model="newReminder.reminderTime"
-                type="datetime-local"
-                class="w-full px-2 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <button
-              @click="handleAddReminder"
-              :disabled="!isFormValid"
-              class="w-full py-3 rounded text-base transition-colors duration-300"
-              :class="[
-                isFormValid
-                  ? 'bg-blue-500 text-white hover:bg-blue-600'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed',
-              ]"
-            >
-              添加提醒
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <Toast
-      message="提醒标题已存在，请使用不同的标题"
-      type="warning"
-      v-model="showToast"
-    />
-  </SubWindowLayout>
-</template>
 
 <style scoped>
 .tab-content::-webkit-scrollbar {

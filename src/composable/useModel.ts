@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 // 模型url
 // const url = ref('rabbit.glb')
-const url = ref('logo_model_v13.glb')
+const url = ref('logo_hy2.glb')
 
 
 

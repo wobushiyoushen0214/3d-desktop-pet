@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, ipcMain } from 'electron'
+import { app, BrowserWindow, screen, ipcMain, session } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -16,6 +16,9 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST
+
+// 忽略 SSL 证书错误（用于测试环境）
+app.commandLine.appendSwitch('ignore-certificate-errors')
 
 let win: BrowserWindow | null
 
@@ -42,8 +45,19 @@ function createWindow() {
   })
 
   // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
+  win.webContents.on('did-finish-load', async () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
+    
+    // 初始化时同步一次 cookie
+    const cookies = await session.defaultSession.cookies.get({})
+    cookies.forEach((cookie) => {
+      win?.webContents.send('cookie-updated', {
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+      })
+    })
+    console.log('Cookies synced to renderer process', cookies)
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -57,6 +71,15 @@ function createWindow() {
 
   win.setVisibleOnAllWorkspaces(true, {
     visibleOnFullScreen: true,
+  })
+
+  // 监听主窗口移动事件，同步移动提醒窗口
+  win.on('move', () => {
+    if (reminderWindow && win) {
+      const [x, y] = win.getPosition()
+      // 保持相对位置：x 偏移 50 以居中，y 在主窗口上方 160 像素
+      reminderWindow.setPosition(x - 50, y - 160)
+    }
   })
 
   // win.webContents.openDevTools({ mode: 'detach' })
@@ -133,14 +156,14 @@ function createReminderWindow() {
   // 获取实时的主窗口位置
   const mainWindowBounds = win?.getBounds() || {
     x: screenWidth - 200,
-    y: screenHeight - 150,
+    y: screenHeight - 220,
   }
 
   reminderWindow = new BrowserWindow({
-    width: 180,
-    height: 150,
-    x: mainWindowBounds.x,
-    y: mainWindowBounds.y - 210, // 在主窗口上方150像素
+    width: 280, // 增加宽度以适应 220px 的内容 + padding
+    height: 200, // 稍微增加高度以适应内容
+    x: mainWindowBounds.x - 50, // 稍微向左偏移，使其相对于主窗口居中（主窗口宽180，弹窗宽280，差100，偏移50）
+    y: mainWindowBounds.y - 160, // 往下一点，让气泡更靠近宠物
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
@@ -229,12 +252,53 @@ app.whenReady().then(() => {
 
   // 主窗口最小化
   ipcMain.on('minimize-main-window', () => {
-    if (win !== null && win !== undefined) {
-      win.minimize()
-    }
+    win?.minimize()
   })
 
+  // 增加打开子窗口监听
   ipcMain.on('open-sub-window', (_event, { windowId, title }) => {
     createSubWindow(windowId, title)
+  })
+
+  // --- 登录相关逻辑 ---
+  let loginWindow: BrowserWindow | null = null
+
+  function createLoginWindow() {
+    if (loginWindow) {
+      loginWindow.focus()
+      return
+    }
+
+    loginWindow = new BrowserWindow({
+      width: 1000,
+      height: 700,
+      title: '登录绘管家',
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    })
+
+    loginWindow.loadURL('https://wy-test.huiguanjia.cn/login')
+
+    // 监听 cookie 变化
+    session.defaultSession.cookies.on('changed', (_event, cookie, cause, removed) => {
+      if (!removed && cause === 'explicit') {
+        win?.webContents.send('cookie-updated', {
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+        })
+      }
+    })
+
+    loginWindow.on('closed', () => {
+      loginWindow = null
+    })
+  }
+
+  ipcMain.on('open-login-window', () => {
+    createLoginWindow()
   })
 })

@@ -1,44 +1,75 @@
+
+
+<template>
+  <div class="sub-window-layout">
+    <header class="window-header">
+      <h1>{{ title }}</h1>
+    </header>
+    <main class="content scrollbar-thin">
+      <slot></slot>
+    </main>
+  </div>
+</template>
 <script setup lang="ts">
 defineProps<{
   title: string
 }>()
 </script>
-
-<template>
-  <div class="sub-window-layout">
-    <main class="content">
-      <slot></slot>
-    </main>
-  </div>
-</template>
-
 <style scoped>
 .sub-window-layout {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
 }
 
 .window-header {
-  background: #f5f5f5;
-  padding: 12px 20px;
-  border-bottom: 1px solid #e8e8e8;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   -webkit-app-region: drag;
-  /* 允许拖动窗口 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .window-header h1 {
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
   margin: 0;
-  color: #333;
+  letter-spacing: 0.5px;
   -webkit-app-region: no-drag;
-  /* 标题文字不参与拖动 */
 }
 
 .content {
   flex: 1;
-  padding: 20px;
+  padding: 0;
   overflow-y: auto;
+  position: relative;
+}
+
+/* 自定义滚动条 */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.8);
 }
 </style>
