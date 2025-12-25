@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, ipcMain, session } from 'electron'
+import { app, BrowserWindow, screen, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -16,9 +16,6 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST
-
-// 忽略 SSL 证书错误（用于测试环境）
-app.commandLine.appendSwitch('ignore-certificate-errors')
 
 let win: BrowserWindow | null
 
@@ -48,16 +45,11 @@ function createWindow() {
   win.webContents.on('did-finish-load', async () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
     
-    // 初始化时同步一次 cookie
-    const cookies = await session.defaultSession.cookies.get({})
-    cookies.forEach((cookie) => {
-      win?.webContents.send('cookie-updated', {
-        name: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain,
-      })
-    })
-    console.log('Cookies synced to renderer process', cookies)
+    // 发送当前登录状态
+    // const token = authStore.get('token')
+    // if (token) {
+    //   win?.webContents.send('login-success', { token })
+    // }
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -209,96 +201,144 @@ function createReminderWindow() {
   // reminderWindow?.webContents.openDevTools();
 }
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    destroyTray()
-    app.quit()
-    subWindows.forEach((window) => {
-      window.close()
-    })
-    win = null
-    reminderWindow = null
-  }
-})
+// 请求单实例锁
+const gotTheLock = app.requestSingleInstanceLock()
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
+export function handleLogout() {
+  // authStore.delete('token')
+  // session.defaultSession.clearStorageData({ storages: ['cookies'] })
+  // win?.webContents.send('logout-success')
+  // updateTrayMenu() // 退出登录后更新托盘菜单
+}
 
-app.whenReady().then(() => {
-  createReminderWindow()
-  createWindow()
-  createTray(() => {
-    destroyTray()
-    app.quit()
-    subWindows.forEach((window) => {
-      window.close()
-    })
-    win = null
-    reminderWindow = null
-  })
-
-  ipcMain.on('exit-app', () => {
-    destroyTray()
-    app.quit()
-    subWindows.forEach((window) => {
-      window.close()
-    })
-    win = null
-    reminderWindow = null
-  })
-
-  // 主窗口最小化
-  ipcMain.on('minimize-main-window', () => {
-    win?.minimize()
-  })
-
-  // 增加打开子窗口监听
-  ipcMain.on('open-sub-window', (_event, { windowId, title }) => {
-    createSubWindow(windowId, title)
-  })
-
-  // --- 登录相关逻辑 ---
-  let loginWindow: BrowserWindow | null = null
-
-  function createLoginWindow() {
-    if (loginWindow) {
-      loginWindow.focus()
-      return
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // 当运行第二个实例时，聚焦到主窗口
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
     }
+  })
 
-    loginWindow = new BrowserWindow({
-      width: 1000,
-      height: 700,
-      title: '登录绘管家',
-      autoHideMenuBar: true,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-      },
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      destroyTray()
+      app.quit()
+      subWindows.forEach((window) => {
+        window.close()
+      })
+      win = null
+      reminderWindow = null
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+
+  // 忽略 SSL 证书错误（用于测试环境）
+  app.commandLine.appendSwitch('ignore-certificate-errors')
+  // 尝试修复 Service Worker 数据库 IO 错误
+  app.commandLine.appendSwitch('disable-features', 'SpareRendererProcessHostTask')
+
+  app.whenReady().then(() => {
+    createReminderWindow()
+    createWindow()
+    createTray(
+      path.join(process.env.VITE_PUBLIC, 'logo.png'),
+      {
+        onQuit: () => {
+          destroyTray()
+          app.quit()
+          subWindows.forEach((window) => {
+            window.close()
+          })
+          win = null
+          reminderWindow = null
+        },
+        onLogin: () => {
+          // createLoginWindow()
+        },
+        onLogout: () => {
+          handleLogout()
+        }
+      }
+    )
+
+    ipcMain.on('exit-app', () => {
+      destroyTray()
+      app.quit()
+      subWindows.forEach((window) => {
+        window.close()
+      })
+      win = null
+      reminderWindow = null
     })
 
-    loginWindow.loadURL('https://wy-test.huiguanjia.cn/login')
+    // 主窗口最小化
+    ipcMain.on('minimize-main-window', () => {
+      win?.minimize()
+    })
 
-    // 监听 cookie 变化
-    session.defaultSession.cookies.on('changed', (_event, cookie, cause, removed) => {
-      if (!removed && cause === 'explicit') {
-        win?.webContents.send('cookie-updated', {
-          name: cookie.name,
-          value: cookie.value,
-          domain: cookie.domain,
+    // 增加打开子窗口监听
+    ipcMain.on('open-sub-window', (_event, { windowId, title }) => {
+      createSubWindow(windowId, title)
+    })
+
+    // 登录窗口监听
+    ipcMain.on('open-login-window', () => {
+      // createLoginWindow()
+    })
+
+    // 获取 Token
+    ipcMain.handle('get-token', () => {
+      // return authStore.get('token')
+      return null
+    })
+
+    // 清除 Token
+    ipcMain.on('logout', () => {
+      handleLogout()
+    })
+
+    // Ollama Chat Stream
+    ipcMain.on('chat-send', async (event, { messages, model = 'llama3' }) => {
+      try {
+        // console.log('Sending chat request to Ollama:', { messages, model })
+        const response = await fetch('http://192.168.110.251:11434/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: true
+          })
         })
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Ollama API error: ${response.statusText}`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          
+          const chunk = decoder.decode(value, { stream: true })
+          event.sender.send('chat-reply-chunk', chunk)
+        }
+        
+        event.sender.send('chat-reply-done')
+      } catch (error: any) {
+        console.error('Chat error:', error)
+        event.sender.send('chat-reply-error', error.message)
       }
     })
-
-    loginWindow.on('closed', () => {
-      loginWindow = null
-    })
-  }
-
-  ipcMain.on('open-login-window', () => {
-    createLoginWindow()
   })
-})
+}

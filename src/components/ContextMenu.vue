@@ -2,7 +2,7 @@
  * @Author: LiZhiWei
  * @Date: 2025-12-23 14:53:55
  * @LastEditors: LiZhiWei
- * @LastEditTime: 2025-12-24 09:26:31
+ * @LastEditTime: 2025-12-25 11:56:41
  * @Description: 
 -->
 
@@ -38,19 +38,20 @@
 <script setup>
 import { computed } from 'vue'
 import { useModel } from '../composable/useModel'
-import { useUser } from '../composable/useUser'
+// import { useUser } from '../composable/useUser'
 
 const { loopAction } = useModel()
-const { isLoggedIn } = useUser()
+// const { isLoggedIn, login, logout } = useUser()
 
 const emit = defineEmits(['close'])
 
 const menuItems = computed(() => [
-  { 
-    id: 'login', 
-    label: isLoggedIn.value ? '已登录账号' : '登录账号', 
-    icon: isLoggedIn.value ? '✅' : '👤' 
-  },
+  // { 
+  //   id: 'login', 
+  //   label: isLoggedIn.value ? '退出登录' : '登录账号', 
+  //   icon: isLoggedIn.value ? '🚪' : '👤' 
+  // },
+  { id: 'chat', label: 'AI 助手', icon: '🤖' },
   { id: 'task', label: '添加任务', icon: '🔖' },
   { id: 'reminder', label: '添加提醒', icon: '⏰' },
   {
@@ -65,8 +66,18 @@ const handleMenuClick = (menuId) => {
   const ipcRenderer = window.ipcRenderer
 
   switch (menuId) {
-    case 'login':
-      ipcRenderer.send('open-login-window')
+    // case 'login':
+    //   if (isLoggedIn.value) {
+    //     logout()
+    //   } else {
+    //     login()
+    //   }
+    //   break
+    case 'chat':
+      ipcRenderer.send('open-sub-window', {
+        windowId: 'chat',
+        title: 'AI 助手',
+      })
       break
     case 'task':
       ipcRenderer.send('open-sub-window', {

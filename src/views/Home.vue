@@ -13,7 +13,9 @@
         </TresGroup>
       </Suspense>
       <TresDirectionalLight v-bind="light" />
-      <TresAmbientLight :intensity="2" />
+      <TresDirectionalLight :position="[-3, 2, 2]" :intensity="1.6" color="#ffffff" />
+      <TresHemisphereLight :intensity="1.2" :ground-color="'#e5e7eb'" color="#ffffff" />
+      <TresAmbientLight :intensity="2.8" />
     </TresCanvas>
 
     <!-- 当菜单显示时，覆盖一层透明遮罩，用于点击关闭菜单 -->
@@ -79,7 +81,7 @@ const handleClick = (ev) => {
 const light = ref({
   color: '#fff',
   position: [0, 4, 3],
-  intensity: 1.8,
+  intensity: 3.2,
 })
 
 // 定时器

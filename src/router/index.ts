@@ -28,6 +28,11 @@ const routes = [
     name: 'reminder-popup',
     component: ReminderPopup,
   },
+  {
+    path: '/chat',
+    name: 'Chat',
+    component: () => import('../views/ChatView.vue'),
+  },
 ]
 
 const router = createRouter({

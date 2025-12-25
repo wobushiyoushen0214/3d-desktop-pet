@@ -18,20 +18,23 @@ import { useModel } from '../composable/useModel'
 const { url, loopAction, clickAction, clickActionPlay, availableClickActions } = useModel()
 
 watch(clickActionPlay, () => {
-  if (clickActionPlay.value) {
-    hello()
-  }
+  hello()
 })
 
 watch(
   loopAction,
   () => {
     if (loopAction.value.isLoop) {
-      currentLoopAction.value.play()
-      isPlaying.value = true
+      if (currentLoopAction.value) {
+        currentLoopAction.value.reset()
+        currentLoopAction.value.play()
+        isPlaying.value = true
+      }
     } else {
-      currentLoopAction.value.stop()
-      isPlaying.value = false
+      if (currentLoopAction.value) {
+        currentLoopAction.value.stop()
+        isPlaying.value = false
+      }
     }
   },
   { deep: true }
@@ -49,7 +52,12 @@ const modules = import.meta.glob('/public/*.glb', {
 
 // 根据 url 获取对应的模型路径
 const path = `/public/${url.value}`
-modelUrl.value = (modules[path] as string) || url.value
+const fallbackPath = '/public/logo_model_v14.glb'
+modelUrl.value =
+  (modules[path] as string) ||
+  (modules[fallbackPath] as string) ||
+  url.value ||
+  'logo_model_v14.glb'
 
 if (!modelUrl.value) {
   console.error(`Model not found: ${path}`)
@@ -60,6 +68,9 @@ if (!modelUrl.value) {
 const { scene: model, animations } = await useGLTF(modelUrl.value)
 
 const { actions } = useAnimations(animations, model)
+
+console.log('Model animations:', animations.map((a) => a.name))
+console.log('Animation actions:', Object.keys(actions))
 
 // 点击动作
 const currentClickAction = ref<any>(null)
@@ -79,8 +90,125 @@ currentLoopAction.value = Object.keys(actions).includes(loopAction.value.action)
   : null
 
 if (loopAction.value.isLoop && currentLoopAction.value) {
+  currentLoopAction.value.reset()
   currentLoopAction.value.play()
   isPlaying.value = true
+}
+
+let activeOneShot: any = null
+let activeOneShotFinished: (() => void) | null = null
+
+const isOneShotRunning = ref(false)
+
+const traverseMeshes = (root: THREE.Object3D) => {
+  const meshes: THREE.Mesh[] = []
+  root.traverse((obj) => {
+    if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh)
+  })
+  return meshes
+}
+
+const getEyeTargets = () => {
+  const meshes = traverseMeshes(model)
+  const byName = meshes.filter((m) => /eye|眼/i.test(m.name))
+  if (byName.length) return byName
+  const byMaterialName = meshes.filter((m) => {
+    const material = m.material as any
+    const materialName = material?.name
+    return typeof materialName === 'string' && /eye|眼/i.test(materialName)
+  })
+  return byMaterialName
+}
+
+const tween = (durationMs: number, onUpdate: (t: number) => void) => {
+  return new Promise<void>((resolve) => {
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs)
+      onUpdate(t)
+      if (t < 1) {
+        requestAnimationFrame(tick)
+      } else {
+        resolve()
+      }
+    }
+    requestAnimationFrame(tick)
+  })
+}
+
+const easeInOutQuad = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+
+const playBlink = async () => {
+  const targets = getEyeTargets()
+  if (!targets.length) return
+
+  const baseScales = targets.map((m) => m.scale.clone())
+  const minY = 0.08
+
+  await tween(80, (t) => {
+    const k = 1 - (1 - minY) * easeInOutQuad(t)
+    targets.forEach((m, idx) => {
+      const base = baseScales[idx]
+      m.scale.set(base.x, base.y * k, base.z)
+    })
+  })
+
+  await tween(140, (t) => {
+    const k = minY + (1 - minY) * easeInOutQuad(t)
+    targets.forEach((m, idx) => {
+      const base = baseScales[idx]
+      m.scale.set(base.x, base.y * k, base.z)
+    })
+  })
+}
+
+const playJump = async () => {
+  const baseY = model.position.y
+  const height = 0.32
+  await tween(240, (t) => {
+    model.position.y = baseY + height * easeInOutQuad(t)
+  })
+  await tween(260, (t) => {
+    model.position.y = baseY + height * (1 - easeInOutQuad(t))
+  })
+  model.position.y = baseY
+}
+
+const playGltfOneShot = (action: any) => {
+  return new Promise<void>((resolve) => {
+    if (!action) return resolve()
+
+    if (activeOneShot && activeOneShotFinished) {
+      try {
+        activeOneShot
+          .getMixer()
+          .removeEventListener('finished', activeOneShotFinished)
+      } catch (e) {
+      }
+    }
+
+    action.stop()
+    action.reset()
+    action.play()
+    action.setLoop(THREE.LoopOnce, 1)
+    action.clampWhenFinished = true
+
+    const onFinished = () => {
+      action.stop()
+      action.getMixer().removeEventListener('finished', onFinished)
+      resolve()
+    }
+
+    activeOneShot = action
+    activeOneShotFinished = onFinished
+    action.getMixer().addEventListener('finished', onFinished)
+  })
+}
+
+const customActions: Record<string, () => Promise<void>> = {
+  Blink: playBlink,
+  Jump: playJump,
 }
 
 // 点击动作
@@ -90,33 +218,38 @@ const hello = () => {
     return
   }
 
-  // 随机选择一个动作
-  const actionName =
-    availableClickActions[
-      Math.floor(Math.random() * availableClickActions.length)
-    ]
-  const action = actions[actionName]
+  if (isOneShotRunning.value) return
 
-  if (!action) return
-
-  if (isPlaying.value) {
-    currentLoopAction.value.stop()
+  const candidates = availableClickActions.filter(
+    (name) => !!actions[name] || !!customActions[name]
+  )
+  if (candidates.length === 0) {
+    console.warn('No available click actions found in model actions.')
+    return
   }
-  
-  action.stop()
-  action.play()
-  action.setLoop(THREE.LoopOnce, 1)
-  action.clampWhenFinished = true
+  const actionName = candidates[Math.floor(Math.random() * candidates.length)]
 
-  const onFinished = () => {
-    action.stop()
-    clickActionPlay.value = false
-    action.getMixer().removeEventListener('finished', onFinished)
-    if (isPlaying.value) {
-      currentLoopAction.value.play()
+  const run = async () => {
+    isOneShotRunning.value = true
+    try {
+      if (isPlaying.value) {
+        if (currentLoopAction.value) currentLoopAction.value.stop()
+      }
+
+      const action = actions[actionName]
+      if (action) {
+        await playGltfOneShot(action)
+      } else if (customActions[actionName]) {
+        await customActions[actionName]()
+      }
+    } finally {
+      if (isPlaying.value) {
+        if (currentLoopAction.value) currentLoopAction.value.play()
+      }
+      isOneShotRunning.value = false
     }
   }
 
-  action.getMixer().addEventListener('finished', onFinished)
+  run()
 }
 </script>
