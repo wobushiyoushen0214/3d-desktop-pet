@@ -92,15 +92,10 @@ const handleMenuClick = (menuId) => {
       })
       break
     case 'pet':
-      // ipcRenderer.send('open-sub-window', {
-      //   windowId: 'pet',
-      //   title: '宠物管理',
-      // })
-      if (loopAction.value.isLoop) {
-        loopAction.value.isLoop = false
-      } else {
-        loopAction.value.isLoop = true
-      }
+      ipcRenderer.send('open-sub-window', {
+        windowId: 'pet',
+        title: '宠物管理',
+      })
       break
     case 'exit':
       // ipcRenderer.send('exit-app')

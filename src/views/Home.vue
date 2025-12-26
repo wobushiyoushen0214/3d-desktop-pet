@@ -9,7 +9,7 @@
       <Suspense>
         <!-- 移除 click.stop，防止阻止 DOM 事件冒泡 -->
         <TresGroup @click="handleClick">
-          <Pet />
+          <Pet :key="url" />
         </TresGroup>
       </Suspense>
       <TresDirectionalLight v-bind="light" />
@@ -44,7 +44,7 @@ import { useModel } from '../composable/useModel'
 import { useReminder } from '../composable/useReminder'
 
 const { checkReminders } = useReminder()
-const { clickActionPlayMessage } = useModel()
+const { clickActionPlayMessage, url } = useModel()
 
 const showContextMenu = ref(false)
 const handleContextMenu = (event) => {
