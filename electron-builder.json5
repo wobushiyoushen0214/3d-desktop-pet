@@ -11,6 +11,7 @@
   mac: {
     target: ["dmg"],
     artifactName: "${productName}-Mac-${version}-Installer.${ext}",
+    icon: "public/logo.png",
   },
   win: {
     target: [
@@ -20,15 +21,19 @@
       },
     ],
     artifactName: "${productName}-Windows-${version}-Setup.${ext}",
+    icon: "public/logo.png",
   },
   nsis: {
     oneClick: false,
     perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
+    installerIcon: "public/logo.png",
+    uninstallerIcon: "public/logo.png",
   },
   linux: {
     target: ["AppImage"],
     artifactName: "${productName}-Linux-${version}.${ext}",
+    icon: "public/logo.png",
   },
 }
