@@ -2,7 +2,7 @@
  * @Author: LiZhiWei
  * @Date: 2025-12-23 14:53:55
  * @LastEditors: LiZhiWei
- * @LastEditTime: 2025-12-24 09:08:05
+ * @LastEditTime: 2025-12-26 10:19:18
  * @Description: 
 -->
 
@@ -220,7 +220,7 @@ const hello = () => {
 
   if (isOneShotRunning.value) return
 
-  const candidates = availableClickActions.filter(
+  const candidates = availableClickActions.value.filter(
     (name) => !!actions[name] || !!customActions[name]
   )
   if (candidates.length === 0) {
